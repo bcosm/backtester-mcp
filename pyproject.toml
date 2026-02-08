@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "backtester-mcp"
+version = "0.1.0"
+description = "Local-first backtesting engine with built-in overfitting detection"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "backtester-mcp contributors" }]
+readme = "README.md"
+dependencies = [
+    "numpy>=1.24",
+    "numba>=0.57",
+    "duckdb>=0.9",
+    "pyarrow>=14.0",
+    "pandas>=2.0",
+    "optuna>=3.0",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+report = ["plotly>=5.0"]
+all = ["backtester-mcp[mcp,report]"]
+
+[project.scripts]
+backtester-mcp = "backtester_mcp.cli:main"
