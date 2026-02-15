@@ -48,6 +48,8 @@ def cmd_backtest(args):
     for k, v in result.metrics.items():
         if k == "max_drawdown":
             print(f"  {k:.<25} {v:.2%}")
+        elif k == "max_drawdown_duration":
+            print(f"  {k:.<25} {v} bars")
         elif k == "total_return":
             print(f"  {k:.<25} {v:.2%}")
         elif k == "cagr":
@@ -61,13 +63,19 @@ def cmd_backtest(args):
         else:
             print(f"  {k:.<25} {v}")
 
-    # PBO analysis
-    if args.pbo:
-        from backtester_mcp.robustness import bootstrap_sharpe
+    if args.robustness:
+        from backtester_mcp.robustness import bootstrap_sharpe, deflated_sharpe
         bs = bootstrap_sharpe(result.returns)
         print(f"\n  Bootstrap Sharpe 95% CI: [{bs['ci_lower']:.4f}, {bs['ci_upper']:.4f}]")
         if bs["ci_includes_zero"]:
-            print("  ** CI includes zero — edge may not be statistically significant")
+            print("  ** CI includes zero: edge may not be statistically significant")
+
+        dsr = deflated_sharpe(
+            observed_sharpe=bs["sharpe"],
+            n_returns=len(result.returns),
+            n_strategies=1,
+        )
+        print(f"  Deflated Sharpe p-value: {dsr['p_value']:.4f}")
 
     # generate manifest
     date_range = None
@@ -130,7 +138,7 @@ def cmd_report(args):
 
     pbo_result = None
     bootstrap_result = None
-    if args.pbo:
+    if args.robustness:
         from backtester_mcp.robustness import bootstrap_sharpe
         bootstrap_result = bootstrap_sharpe(result.returns)
 
@@ -161,7 +169,8 @@ def main():
     bt = sub.add_parser("backtest", help="run a backtest")
     bt.add_argument("--strategy", "-s", required=True)
     bt.add_argument("--data", "-d", required=True)
-    bt.add_argument("--pbo", action="store_true", help="run bootstrap Sharpe analysis")
+    bt.add_argument("--robustness", action="store_true",
+                     help="run robustness checks (bootstrap Sharpe CI + deflated Sharpe)")
     bt.add_argument("--manifest", "-m", help="save manifest to this path")
 
     # optimize
@@ -176,7 +185,8 @@ def main():
     rpt = sub.add_parser("report", help="generate HTML report")
     rpt.add_argument("--strategy", "-s", required=True)
     rpt.add_argument("--data", "-d", required=True)
-    rpt.add_argument("--pbo", action="store_true")
+    rpt.add_argument("--robustness", action="store_true",
+                      help="include robustness analysis in report")
     rpt.add_argument("--output", "-o", default="report.html")
     rpt.add_argument("--manifest", "-m")
 

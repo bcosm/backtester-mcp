@@ -51,7 +51,7 @@ print(result.metrics)
 | Overfitting detection | None | PBO + Bootstrap Sharpe + DSR |
 | Fill simulation | Hand-tuned per asset | Auto-estimated from data |
 | AI agent interface | Cloud API wrapper | Native MCP server |
-| Cost | $60+/month | Free & open source |
+| Cost | Free tier; $60+/mo for research nodes | Free & open source |
 
 ## CLI Usage
 
@@ -59,8 +59,8 @@ print(result.metrics)
 # Run a backtest
 backtester-mcp backtest --strategy strategies/momentum.py --data datasets/spy_daily.parquet
 
-# Run with bootstrap Sharpe analysis
-backtester-mcp backtest --strategy strategies/momentum.py --data datasets/spy_daily.parquet --pbo
+# Run robustness checks (bootstrap Sharpe CI + deflated Sharpe ratio)
+backtester-mcp backtest --strategy strategies/momentum.py --data datasets/spy_daily.parquet --robustness
 
 # Optimize parameters (Bayesian search + automatic PBO check)
 backtester-mcp optimize --strategy strategies/momentum.py --data datasets/spy_daily.parquet \
@@ -79,7 +79,7 @@ Output from `backtester-mcp backtest`:
   sharpe................... 0.2801
   sortino.................. 0.2723
   max_drawdown............. -28.89%
-  max_drawdown_duration.... 849
+  max_drawdown_duration.... 849 bars
   calmar................... 0.0477
   win_rate................. 52.33%
   profit_factor............ 1.0541
@@ -104,7 +104,25 @@ backtester-mcp exposes backtesting tools via the Model Context Protocol, so AI a
 }
 ```
 
-Available tools: `backtest_strategy`, `validate_robustness`, `optimize_parameters`, `compare_strategies`.
+Example tool call and response:
+
+```json
+// Agent sends:
+{"method": "tools/call", "params": {
+  "name": "backtest_strategy",
+  "arguments": {
+    "strategy_code": "import numpy as np\ndef generate_signals(prices, fast=10, slow=50):\n    f = np.convolve(prices, np.ones(fast)/fast, 'full')[:len(prices)]\n    s = np.convolve(prices, np.ones(slow)/slow, 'full')[:len(prices)]\n    sig = np.where(f > s, 1.0, -1.0)\n    sig[:slow] = 0\n    return sig",
+    "data_path": "datasets/spy_daily.parquet"
+  }
+}}
+
+// Server returns:
+{"sharpe": 0.2801, "sortino": 0.2723, "max_drawdown": -0.2889,
+ "win_rate": 0.5233, "profit_factor": 1.0541, "total_return": 0.162,
+ "cagr": 0.0138, "volatility": 0.1649, "num_trades": 137}
+```
+
+Available tools: `backtest_strategy`, `validate_robustness`, `optimize_parameters`, `upload_dataset`, `compare_strategies`.
 
 ## How PBO Works
 
@@ -116,16 +134,16 @@ This is from Lopez de Prado (2018), "The Probability of Backtest Overfitting," *
 
 ## Architecture
 
-```
-Data (CSV/Parquet/DuckDB)
-  → Engine (vectorized backtest on NumPy arrays, Numba-accelerated)
-    → Metrics (Sharpe, Sortino, drawdown, etc.)
-    → Robustness (PBO, bootstrap Sharpe, deflated Sharpe ratio)
-    → Report (self-contained HTML)
-    → Manifest (reproducible JSON audit trail)
+```mermaid
+graph LR
+    A[Data: CSV / Parquet / DuckDB] --> B[Engine: NumPy + Numba]
+    B --> C[Metrics]
+    B --> D[Robustness: PBO, Bootstrap, DSR]
+    B --> E[Report: HTML]
+    B --> F[Manifest: JSON audit trail]
 ```
 
-Strategies are plain functions: `f(prices, **params) → signals`. No class hierarchies, no inheritance, no plugin system.
+Strategies are plain functions: `f(prices, **params) -> signals`. No class hierarchies, no inheritance, no plugin system.
 
 ## Stochastic Order Book
 
@@ -136,6 +154,10 @@ Most backtesting engines either ignore fill simulation or require hand-tuned mod
 - **Stochastic fills**: randomized around the estimated spread, so your backtest doesn't assume perfect execution
 
 This works on any price series (equities, crypto, prediction markets) without configuration.
+
+## Contributing
+
+Open an issue before submitting a PR. Keep commits atomic with imperative-mood messages (`feat:`, `fix:`, `test:`, etc.).
 
 ## License
 

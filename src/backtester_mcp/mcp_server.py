@@ -48,10 +48,10 @@ def run_server(transport: str = "stdio"):
     @mcp.tool()
     def validate_robustness(strategy_code: str, data_path: str,
                             params: dict = None) -> str:
-        """Run PBO + bootstrap Sharpe and return overfitting analysis."""
+        """Run bootstrap Sharpe CI + deflated Sharpe ratio."""
         from backtester_mcp.data import load, to_arrays
         from backtester_mcp.engine import backtest
-        from backtester_mcp.robustness import bootstrap_sharpe
+        from backtester_mcp.robustness import bootstrap_sharpe, deflated_sharpe
 
         df = load(data_path)
         prices = to_arrays(df)["close"]
@@ -59,11 +59,23 @@ def run_server(transport: str = "stdio"):
         signals = mod.generate_signals(prices, **(params or {}))
         result = backtest(prices, signals)
         bs = bootstrap_sharpe(result.returns)
+        dsr = deflated_sharpe(
+            observed_sharpe=bs["sharpe"],
+            n_returns=len(result.returns),
+            n_strategies=1,
+        )
         return json.dumps({
-            "sharpe": bs["sharpe"],
-            "ci_lower": bs["ci_lower"],
-            "ci_upper": bs["ci_upper"],
-            "ci_includes_zero": bs["ci_includes_zero"],
+            "bootstrap_sharpe": {
+                "sharpe": bs["sharpe"],
+                "ci_lower": bs["ci_lower"],
+                "ci_upper": bs["ci_upper"],
+                "ci_includes_zero": bs["ci_includes_zero"],
+            },
+            "deflated_sharpe": {
+                "dsr": dsr["dsr"],
+                "p_value": dsr["p_value"],
+                "expected_max_sharpe": dsr["expected_max_sharpe"],
+            },
             "metrics": result.metrics,
         }, indent=2)
 
@@ -102,5 +114,26 @@ def run_server(transport: str = "stdio"):
 
         results.sort(key=lambda x: x["metrics"]["sharpe"], reverse=True)
         return json.dumps(results, indent=2)
+
+    @mcp.tool()
+    def upload_dataset(file_path: str, name: str = None) -> str:
+        """Register a local dataset file for use in backtests."""
+        from backtester_mcp.data import load
+
+        path = Path(file_path).resolve()
+        if not path.exists():
+            return json.dumps({"error": f"file not found: {file_path}"})
+
+        df = load(str(path))
+        rows = len(df)
+        cols = list(df.columns)
+        label = name or path.stem
+
+        return json.dumps({
+            "name": label,
+            "path": str(path),
+            "rows": rows,
+            "columns": cols,
+        }, indent=2)
 
     mcp.run(transport=transport)
