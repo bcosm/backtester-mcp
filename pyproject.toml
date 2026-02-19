@@ -13,6 +13,7 @@ readme = "README.md"
 dependencies = [
     "numpy>=1.24",
     "numba>=0.57",
+    "scipy>=1.10",
     "duckdb>=0.9",
     "pyarrow>=14.0",
     "pandas>=2.0",
@@ -21,8 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
-report = ["plotly>=5.0"]
-all = ["backtester-mcp[mcp,report]"]
+all = ["backtester-mcp[mcp]"]
 
 [project.scripts]
 backtester-mcp = "backtester_mcp.cli:main"
