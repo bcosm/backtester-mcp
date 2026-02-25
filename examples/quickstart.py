@@ -1,7 +1,7 @@
 """20-line quickstart: load data, run backtest, print metrics."""
 
 import numpy as np
-from backtester-mcp import load, backtest
+from backtester_mcp import load, backtest
 
 # load price data
 df = load("datasets/spy_daily.parquet")

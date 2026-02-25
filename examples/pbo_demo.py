@@ -22,7 +22,7 @@ def make_overfit_strategies(prices, n_strats=20, seed=0):
 
 
 if __name__ == "__main__":
-    from backtester-mcp import load
+    from backtester_mcp import load
     df = load("datasets/spy_daily.parquet")
     prices = df["close"].to_numpy()
 
