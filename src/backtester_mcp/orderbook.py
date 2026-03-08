@@ -82,14 +82,29 @@ class FillModel:
 
     def __init__(self, prices: np.ndarray, high: np.ndarray = None,
                  low: np.ndarray = None, volume: np.ndarray = None):
-        if high is not None and low is not None:
-            self.spread = estimate_spread_corwin_schultz(high, low)
-        else:
-            self.spread = estimate_spread_roll(prices)
+        self.method_used = "unknown"
 
-        # fallback: if estimator gives 0, use a conservative default
-        if self.spread <= 0:
-            self.spread = 0.001
+        if high is not None and low is not None:
+            spread = estimate_spread_corwin_schultz(high, low)
+            if spread > 0:
+                self.spread = spread
+                self.method_used = "corwin_schultz"
+            else:
+                spread = estimate_spread_roll(prices)
+                if spread > 0:
+                    self.spread = spread
+                    self.method_used = "roll"
+                else:
+                    self.spread = 0.001
+                    self.method_used = "default_fallback"
+        else:
+            spread = estimate_spread_roll(prices)
+            if spread > 0:
+                self.spread = spread
+                self.method_used = "roll"
+            else:
+                self.spread = 0.001
+                self.method_used = "default_fallback"
 
         returns = np.diff(prices) / prices[:-1]
         self.volatility = float(np.std(returns))
@@ -108,4 +123,5 @@ class FillModel:
             "estimated_spread": round(self.spread, 6),
             "daily_volatility": round(self.volatility, 6),
             "avg_volume": round(self.avg_volume, 2),
+            "method_used": self.method_used,
         }

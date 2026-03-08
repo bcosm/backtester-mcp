@@ -58,11 +58,19 @@ def optimize(
     }
 
     if check_pbo and len(trial_returns) >= 2:
-        # trim all return arrays to same length
         min_len = min(len(r) for r in trial_returns)
-        matrix = np.column_stack([r[:min_len] for r in trial_returns])
-        pbo_result = pbo(matrix, n_splits=min(pbo_splits, min_len // 2))
-        out["pbo"] = pbo_result["pbo"]
-        out["pbo_n_combinations"] = pbo_result["n_combinations"]
+        effective_splits = min(pbo_splits, min_len // 2)
+        if effective_splits < 2:
+            out["pbo"] = None
+            out["pbo_warning"] = "series too short for PBO analysis"
+        else:
+            matrix = np.column_stack([r[:min_len] for r in trial_returns])
+            try:
+                pbo_result = pbo(matrix, n_splits=effective_splits)
+                out["pbo"] = pbo_result["pbo"]
+                out["pbo_n_combinations"] = pbo_result["n_combinations"]
+            except ValueError:
+                out["pbo"] = None
+                out["pbo_warning"] = "insufficient data for PBO"
 
     return out
