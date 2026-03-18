@@ -105,13 +105,23 @@ def deflated_sharpe(observed_sharpe: float, n_returns: int,
     From Lopez de Prado (2014). Tests whether the observed Sharpe is
     significantly above what you'd expect from the best of n_strategies
     independent trials on white noise.
+
+    Note: DSR and bootstrap CI measure different things. Bootstrap CI
+    checks whether the Sharpe is distinguishable from zero given sampling
+    noise. DSR checks whether the Sharpe survives correction for how many
+    strategies were tried. It is possible for CI to include zero (uncertain
+    point estimate) while DSR shows significance (or vice versa).
     """
     from scipy import stats
 
-    # expected max Sharpe under null (Euler-Mascheroni approximation)
-    gamma = 0.5772156649
-    e_max = ((1 - gamma) * stats.norm.ppf(1 - 1 / n_strategies)
-             + gamma * stats.norm.ppf(1 - 1 / (n_strategies * np.e)))
+    if n_strategies <= 1:
+        # single strategy: reduces to a simple t-test of the Sharpe ratio
+        e_max = 0.0
+    else:
+        # expected max Sharpe under null (Euler-Mascheroni approximation)
+        gamma = 0.5772156649
+        e_max = ((1 - gamma) * stats.norm.ppf(1 - 1 / n_strategies)
+                 + gamma * stats.norm.ppf(1 - 1 / (n_strategies * np.e)))
 
     # standard error of Sharpe estimator with higher moments
     se = np.sqrt(
