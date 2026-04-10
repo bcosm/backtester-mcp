@@ -54,9 +54,7 @@ def _drawdown_svg(equity: np.ndarray, width: int = 800, height: int = 120) -> st
 
 
 def _monthly_heatmap(returns: np.ndarray, dates=None) -> str:
-    """Simple monthly returns table. If no dates, approximate from trading days."""
     n = len(returns)
-    # approximate monthly blocks (~21 trading days)
     block = 21
     months = n // block
     if months < 1:
@@ -79,7 +77,6 @@ def _monthly_heatmap(returns: np.ndarray, dates=None) -> str:
             f'{pct:+.1f}%</td>'
         )
 
-    # arrange in rows of 12
     table = '<table style="border-collapse:collapse;margin:16px 0">'
     for row_start in range(0, len(rows_html), 12):
         table += "<tr>" + "".join(rows_html[row_start:row_start+12]) + "</tr>"
@@ -107,6 +104,51 @@ def _metrics_table(metrics: dict) -> str:
     )
 
 
+def _scenario_table(scenarios: dict) -> str:
+    keys = ["sharpe", "total_return", "max_drawdown", "cagr"]
+    fmt_map = {"sharpe": "{:.3f}", "total_return": "{:.2%}",
+               "max_drawdown": "{:.2%}", "cagr": "{:.2%}"}
+    header = "<tr><th>Metric</th>"
+    for mode in ("optimistic", "base", "conservative"):
+        header += f"<th>{mode.title()}</th>"
+    header += "</tr>"
+
+    rows = ""
+    for k in keys:
+        rows += f"<tr><td>{k.replace('_',' ').title()}</td>"
+        for mode in ("optimistic", "base", "conservative"):
+            v = scenarios[mode].get(k, 0)
+            f = fmt_map.get(k, "{:.4f}")
+            rows += f"<td>{f.format(v)}</td>"
+        rows += "</tr>"
+
+    return (
+        '<table style="border-collapse:collapse;width:100%;max-width:600px">'
+        f"<thead>{header}</thead><tbody>{rows}</tbody></table>"
+    )
+
+
+def _walk_forward_section(wf: dict) -> str:
+    html = f"""
+    <h2>Walk-Forward Validation</h2>
+    <p>Aggregate OOS Sharpe: <strong>{wf['aggregate_oos_sharpe']:.4f}</strong></p>
+    <p>Stability: <strong>{wf['stability_score']:.0%}</strong>
+    ({sum(1 for w in wf['windows'] if w['oos_metrics']['sharpe'] > 0)}/{len(wf['windows'])} windows positive)</p>
+    <table style="border-collapse:collapse;width:100%;max-width:600px">
+    <thead><tr><th>Window</th><th>Train bars</th><th>Test bars</th>
+    <th>OOS Sharpe</th><th>OOS Return</th></tr></thead><tbody>"""
+
+    for i, w in enumerate(wf["windows"]):
+        oos = w["oos_metrics"]
+        train_bars = w["train_end"] - w["train_start"]
+        test_bars = w["test_end"] - w["test_start"]
+        html += (f"<tr><td>{i+1}</td><td>{train_bars}</td><td>{test_bars}</td>"
+                 f"<td>{oos['sharpe']:.4f}</td><td>{oos['total_return']:.2%}</td></tr>")
+
+    html += "</tbody></table>"
+    return html
+
+
 def generate_report(
     equity: np.ndarray,
     returns: np.ndarray,
@@ -114,6 +156,8 @@ def generate_report(
     manifest: dict = None,
     pbo_result: dict = None,
     bootstrap_result: dict = None,
+    walk_forward_result: dict = None,
+    scenarios: dict = None,
 ) -> str:
     """Generate a self-contained HTML report string."""
 
@@ -123,11 +167,11 @@ def generate_report(
     metrics_html = _metrics_table(metrics)
 
     pbo_section = ""
-    if pbo_result:
+    if pbo_result and pbo_result.get("pbo") is not None:
         pbo_section = f"""
-        <h2>Overfitting Analysis</h2>
+        <h2>Overfitting Analysis (PBO)</h2>
         <p>PBO Score: <strong>{pbo_result['pbo']:.4f}</strong>
-        ({pbo_result['n_combinations']} combinations tested)</p>
+        ({pbo_result.get('n_combinations', '?')} combinations tested)</p>
         <p>{'&#9888; High probability of overfitting' if pbo_result['pbo'] > 0.5
            else '&#10004; Low overfitting risk'}</p>
         """
@@ -140,6 +184,20 @@ def generate_report(
         <p>95% CI: [{bootstrap_result['ci_lower']:.4f}, {bootstrap_result['ci_upper']:.4f}]</p>
         <p>{'&#9888; CI includes zero' if bootstrap_result['ci_includes_zero']
            else '&#10004; Statistically significant'}</p>
+        """
+
+    wf_section = ""
+    if walk_forward_result:
+        wf_section = _walk_forward_section(walk_forward_result)
+
+    scenario_section = ""
+    if scenarios:
+        fill = scenarios.get("fill_summary", {})
+        scenario_section = f"""
+        <h2>Execution Scenarios</h2>
+        <p>Fill method: {fill.get('method_used', 'unknown')}
+        | Spread: {fill.get('estimated_spread', 0):.6f}</p>
+        {_scenario_table(scenarios)}
         """
 
     manifest_section = ""
@@ -179,6 +237,8 @@ def generate_report(
 {heatmap}
 {pbo_section}
 {bootstrap_section}
+{wf_section}
+{scenario_section}
 {manifest_section}
 </body>
 </html>"""
