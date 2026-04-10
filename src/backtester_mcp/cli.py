@@ -67,7 +67,7 @@ def _print_scenario_table(scenarios: dict):
     keys = ["sharpe", "total_return", "max_drawdown", "cagr"]
     header = f"  {'metric':.<20} {'optimistic':>12} {'base':>12} {'conservative':>12}"
     print(header)
-    print(f"  {'─'*56}")
+    print(f"  {'-'*56}")
     for k in keys:
         row = f"  {k:.<20}"
         for mode in ("optimistic", "base", "conservative"):
@@ -331,7 +331,7 @@ def cmd_list_runs(args):
         print("  No saved runs.")
         return
     print(f"\n  {'ID':36}  {'Strategy':15}  {'Date':25}  {'Sharpe':>8}")
-    print(f"  {'─'*86}")
+    print(f"  {'-'*86}")
     for r in runs:
         s = r["metrics"].get("sharpe", "—")
         sharpe_str = f"{s:.4f}" if isinstance(s, float) else str(s)
@@ -361,7 +361,7 @@ def cmd_compare_runs(args):
         label = r["strategy_name"][:12]
         header += f" {label:>12}"
     print(header)
-    print(f"  {'─' * (20 + 13 * len(runs))}")
+    print(f"  {'-' * (20 + 13 * len(runs))}")
     for k in keys:
         row = f"  {k:.<20}"
         for r in runs:
