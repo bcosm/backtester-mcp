@@ -4,12 +4,13 @@ Local-first backtesting engine with built-in overfitting detection. Asset-class 
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)
+![Tests](https://github.com/yourusername/backtester-mcp/actions/workflows/test.yml/badge.svg)
 
 ## The Problem
 
 QuantConnect requires Docker + C#, supports 9 hardcoded asset classes, and ships zero statistical robustness tools. Solo quants and AI agents need something that's `pip install`, works on any price series (equities, crypto, prediction markets) and tells you if your strategy is overfit before you risk real money.
 
-backtester-mcp is a backtesting engine built for this. Vectorized execution on NumPy + Numba, automatic overfitting detection via Probability of Backtest Overfitting (PBO), and a native MCP server so AI agents can run backtests directly.
+backtester-mcp is a validation layer for AI-generated trading strategies. Vectorized execution on NumPy + Numba, automatic overfitting detection via PBO, walk-forward validation, execution scenario analysis, and a native MCP server so AI agents can validate strategies directly.
 
 ## Quick Start
 
@@ -48,50 +49,63 @@ print(result.metrics)
 | Setup | Docker + .NET | `pip install` |
 | Engine | C# (Python wrapper) | Pure Python + NumPy + Numba |
 | Asset classes | 9 hardcoded | Any price series |
-| Overfitting detection | None | PBO + Bootstrap Sharpe + DSR |
-| Fill simulation | Hand-tuned per asset | Auto-estimated from data |
-| AI agent interface | Cloud API wrapper | Native MCP server |
-| Cost | Free tier; $60+/mo for research nodes | Free & open source |
+| Overfitting detection | None | PBO + Bootstrap Sharpe + DSR + Walk-Forward |
+| Execution realism | Hand-tuned per asset | Auto-estimated from data, 3 scenario modes |
+| AI agent interface | Cloud API wrapper | Native MCP server (13 tools) |
+| Run persistence | Cloud-dependent | Local DuckDB registry |
+| Cost | Free tier; $60+/mo | Free & open source |
+
+## Validation Pipeline
+
+backtester-mcp runs a full validation pipeline that tells you whether to trust a strategy:
+
+1. **Backtest** with realistic estimated fills
+2. **Bootstrap Sharpe CI** — is the Sharpe distinguishable from zero?
+3. **Deflated Sharpe** — does it survive correction for multiple testing?
+4. **PBO (perturbation)** — are the exact parameters robust, or did you get lucky?
+5. **Walk-forward validation** — does the strategy hold up out-of-sample?
+6. **Execution scenarios** — optimistic, base, and conservative cost assumptions
+
+```bash
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  --robustness --execution-scenarios --walk-forward
+```
 
 ## CLI Usage
 
 ```bash
-# Run a backtest
-backtester-mcp backtest --strategy strategies/momentum.py --data datasets/spy_daily.parquet
+# Basic backtest
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet
 
-# Run robustness checks (bootstrap Sharpe CI + deflated Sharpe ratio)
-backtester-mcp backtest --strategy strategies/momentum.py --data datasets/spy_daily.parquet --robustness
+# Full validation: robustness + execution scenarios
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  --robustness --execution-scenarios
 
-# Optimize parameters (Bayesian search + automatic PBO check)
-backtester-mcp optimize --strategy strategies/momentum.py --data datasets/spy_daily.parquet \
-  --param fast_period:5:50 --param slow_period:20:200
+# Override strategy parameters
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  --set fast_period=20 --set slow_period=100
 
-# Generate HTML report
-backtester-mcp report --strategy strategies/momentum.py --data datasets/spy_daily.parquet -o report.html
-```
+# Estimated fills from market data
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  --realistic-fills
 
-Output from `backtester-mcp backtest`:
-```
-========================================
-  Strategy: momentum
-  Data: datasets/spy_daily.parquet (2765 bars)
-========================================
-  sharpe................... 0.2801
-  sortino.................. 0.2723
-  max_drawdown............. -28.89%
-  max_drawdown_duration.... 849 bars
-  calmar................... 0.0477
-  win_rate................. 52.33%
-  profit_factor............ 1.0541
-  total_return............. 16.20%
-  cagr..................... 1.38%
-  volatility............... 16.49%
-  num_trades............... 137
+# Optimize with Bayesian search + PBO check
+backtester-mcp optimize -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  -p fast_period:5:50 -p slow_period:20:200
+
+# Generate HTML validation report
+backtester-mcp report -s strategies/momentum.py -d datasets/spy_daily.parquet \
+  --robustness --execution-scenarios -o report.html
+
+# Persist and compare runs
+backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet --save-run
+backtester-mcp list-runs
+backtester-mcp compare-runs <run-id-1> <run-id-2>
 ```
 
 ## MCP Server
 
-backtester-mcp exposes backtesting tools via the Model Context Protocol, so AI agents (Claude, etc.) can run backtests, validate robustness, and optimize parameters directly.
+backtester-mcp exposes 13 tools via the Model Context Protocol for AI agents:
 
 ```json
 {
@@ -104,25 +118,48 @@ backtester-mcp exposes backtesting tools via the Model Context Protocol, so AI a
 }
 ```
 
-Example tool call and response:
+**Available tools:**
+
+| Tool | Purpose |
+|---|---|
+| `backtest_strategy` | Run a backtest (flat, estimated, or conservative fills) |
+| `validate_strategy` | Full validation pipeline with pass/caution verdict |
+| `validate_robustness` | Bootstrap Sharpe CI + DSR + PBO |
+| `optimize_parameters` | Bayesian parameter search with PBO check |
+| `compare_strategies` | Compare multiple strategies side by side |
+| `register_dataset` | Register data from file path, CSV, or base64 |
+| `profile_dataset` | Detailed dataset statistics and quality check |
+| `save_run` | Persist results to local DuckDB store |
+| `list_runs` | List recent runs, filterable by dataset/strategy |
+| `load_run` | Retrieve full results for a run |
+| `compare_runs` | Compare metrics across saved runs |
+| `generate_report` | Create HTML validation report |
+| `strategy_template` | Get a parameterized strategy code template |
+
+The `validate_strategy` tool runs the full pipeline in one call and returns a structured verdict:
 
 ```json
-// Agent sends:
-{"method": "tools/call", "params": {
-  "name": "backtest_strategy",
-  "arguments": {
-    "strategy_code": "import numpy as np\ndef generate_signals(prices, fast=10, slow=50):\n    f = np.convolve(prices, np.ones(fast)/fast, 'full')[:len(prices)]\n    s = np.convolve(prices, np.ones(slow)/slow, 'full')[:len(prices)]\n    sig = np.where(f > s, 1.0, -1.0)\n    sig[:slow] = 0\n    return sig",
-    "data_path": "datasets/spy_daily.parquet"
-  }
-}}
-
-// Server returns:
-{"sharpe": 0.2801, "sortino": 0.2723, "max_drawdown": -0.2889,
- "win_rate": 0.5233, "profit_factor": 1.0541, "total_return": 0.162,
- "cagr": 0.0138, "volatility": 0.1649, "num_trades": 137}
+{
+  "verdict": "caution",
+  "reasons": ["bootstrap CI includes zero", "conservative scenario negative return"],
+  "metrics": {"sharpe": 0.28, ...},
+  "pbo": {"pbo": 0.36, ...},
+  "scenarios": {"optimistic": {...}, "base": {...}, "conservative": {...}}
+}
 ```
 
-Available tools: `backtest_strategy`, `validate_robustness`, `optimize_parameters`, `upload_dataset`, `compare_strategies`.
+## Performance
+
+Benchmarks on Apple M-series equivalent (Numba JIT, after warmup):
+
+| Bars | Time |
+|---|---|
+| 1,000 | ~0.6ms |
+| 10,000 | ~7ms |
+| 100,000 | ~33ms |
+| 500,000 | ~193ms |
+
+First run includes JIT compilation (~5ms cold start for 10k bars, ~3ms warm).
 
 ## How PBO Works
 
@@ -130,17 +167,19 @@ Probability of Backtest Overfitting (PBO) answers: "if I pick the best strategy 
 
 It works by splitting your backtest data into S sub-periods, then forming all combinations of S/2 sub-periods as in-sample and the rest as out-of-sample (combinatorially symmetric cross-validation). For each combination, it checks whether the strategy that ranked best in-sample still performs above median out-of-sample. The PBO score is the fraction of combinations where it doesn't. A score above 0.5 means your strategy is more likely overfit than not.
 
-This is from Lopez de Prado (2018), "The Probability of Backtest Overfitting," *Journal of Computational Finance*.
+For single strategies, backtester-mcp uses **perturbation PBO**: it generates variants by jittering parameters within +/-20%, runs each variant, then computes PBO over the resulting returns matrix. This answers "would nearby parameters work just as well, or did you get lucky with these exact numbers?"
+
+From Lopez de Prado (2018), "The Probability of Backtest Overfitting," *Journal of Computational Finance*.
 
 ## Architecture
 
-```mermaid
-graph LR
-    A[Data: CSV / Parquet / DuckDB] --> B[Engine: NumPy + Numba]
-    B --> C[Metrics]
-    B --> D[Robustness: PBO, Bootstrap, DSR]
-    B --> E[Report: HTML]
-    B --> F[Manifest: JSON audit trail]
+```
+Data (CSV/Parquet/DuckDB) -> Engine (NumPy + Numba) -> Metrics
+                                                    -> Robustness (PBO, Bootstrap, DSR, Walk-Forward)
+                                                    -> Sensitivity (Execution Scenarios, Stress Test)
+                                                    -> Report (HTML)
+                                                    -> Manifest (JSON audit trail)
+                                                    -> Store (DuckDB persistence)
 ```
 
 Strategies are plain functions: `f(prices, **params) -> signals`. No class hierarchies, no inheritance, no plugin system.
@@ -149,15 +188,15 @@ Strategies are plain functions: `f(prices, **params) -> signals`. No class hiera
 
 Most backtesting engines either ignore fill simulation or require hand-tuned models per asset class. backtester-mcp automatically estimates fill characteristics from your price data:
 
-- **Spread estimation**: Roll (1984) estimator from close prices, or Corwin-Schultz (2012) from OHLC data
+- **Spread estimation**: Corwin-Schultz (2012) from OHLC data, Roll (1984) from close prices
 - **Market impact**: square-root model calibrated to observed volatility
-- **Stochastic fills**: randomized around the estimated spread, so your backtest doesn't assume perfect execution
+- **Three execution modes**: optimistic (zero cost), base (estimated), conservative (2x spread)
 
-This works on any price series (equities, crypto, prediction markets) without configuration.
+This works on any price series without configuration.
 
 ## Contributing
 
-Open an issue before submitting a PR. Keep commits atomic with imperative-mood messages (`feat:`, `fix:`, `test:`, etc.).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Open an issue before submitting a PR.
 
 ## License
 
