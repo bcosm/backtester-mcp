@@ -18,3 +18,5 @@ build/
 htmlcov/
 .coverage
 .history/
+
+.claude/
