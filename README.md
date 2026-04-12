@@ -4,7 +4,7 @@ Local-first backtesting engine with built-in overfitting detection. Asset-class 
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)
-![Tests](https://github.com/yourusername/backtester-mcp/actions/workflows/test.yml/badge.svg)
+![Tests](https://github.com/bcosm/backtester-mcp/actions/workflows/test.yml/badge.svg)
 
 ## The Problem
 

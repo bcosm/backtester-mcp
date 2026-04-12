@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/yourusername/backtester-mcp.git
+git clone https://github.com/bcosm/backtester-mcp.git
 cd backtester-mcp
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
