@@ -18,16 +18,19 @@ backtester-mcp is a validation layer for AI-generated trading strategies. Vector
 pip install backtester-mcp
 ```
 
+Runs on synthetic data out of the box, no datasets to download:
+
 ```python
 import numpy as np
-from backtester_mcp import load, backtest
+from backtester_mcp import backtest
 
-df = load("datasets/spy_daily.parquet")
-prices = df["close"].to_numpy()
+# synthetic price series, reproducible
+rng = np.random.default_rng(0)
+prices = np.cumprod(1 + rng.normal(0, 0.01, 2000))
 
 # moving average crossover signal
-fast = np.convolve(prices, np.ones(10)/10, mode="full")[:len(prices)]
-slow = np.convolve(prices, np.ones(50)/50, mode="full")[:len(prices)]
+fast = np.convolve(prices, np.ones(10) / 10, mode="full")[:len(prices)]
+slow = np.convolve(prices, np.ones(50) / 50, mode="full")[:len(prices)]
 signals = np.where(fast > slow, 1.0, -1.0)
 signals[:50] = 0
 
@@ -35,12 +38,7 @@ result = backtest(prices, signals)
 print(result.metrics)
 ```
 
-```
-{'sharpe': 0.2801, 'sortino': 0.2723, 'max_drawdown': -0.2889,
- 'calmar': 0.0477, 'win_rate': 0.5233, 'profit_factor': 1.0541,
- 'total_return': 0.162, 'cagr': 0.0138, 'volatility': 0.1649,
- 'num_trades': 137}
-```
+To run against a real dataset, clone the repo (`git clone https://github.com/bcosm/backtester-mcp`) and point `load()` at anything in `datasets/` or your own CSV/Parquet file.
 
 ## Key Features
 
@@ -60,11 +58,11 @@ print(result.metrics)
 backtester-mcp runs a full validation pipeline that tells you whether to trust a strategy:
 
 1. **Backtest** with realistic estimated fills
-2. **Bootstrap Sharpe CI** — is the Sharpe distinguishable from zero?
-3. **Deflated Sharpe** — does it survive correction for multiple testing?
-4. **PBO (perturbation)** — are the exact parameters robust, or did you get lucky?
-5. **Walk-forward validation** — does the strategy hold up out-of-sample?
-6. **Execution scenarios** — optimistic, base, and conservative cost assumptions
+2. **Bootstrap Sharpe CI**: is the Sharpe distinguishable from zero?
+3. **Deflated Sharpe**: does it survive correction for multiple testing?
+4. **PBO (perturbation)**: are the exact parameters robust, or did you get lucky?
+5. **Walk-forward validation**: does the strategy hold up out-of-sample?
+6. **Execution scenarios**: optimistic, base, and conservative cost assumptions
 
 ```bash
 backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet \
@@ -100,6 +98,7 @@ backtester-mcp report -s strategies/momentum.py -d datasets/spy_daily.parquet \
 # Persist and compare runs
 backtester-mcp backtest -s strategies/momentum.py -d datasets/spy_daily.parquet --save-run
 backtester-mcp list-runs
+backtester-mcp show-run <run-id>
 backtester-mcp compare-runs <run-id-1> <run-id-2>
 ```
 
@@ -113,6 +112,19 @@ backtester-mcp exposes 13 tools via the Model Context Protocol for AI agents:
     "backtester-mcp": {
       "command": "backtester-mcp",
       "args": ["serve", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+If your MCP client (e.g. Claude Desktop) can't find the `backtester-mcp` binary because the venv isn't on its PATH, use the Python-module form instead:
+
+```json
+{
+  "mcpServers": {
+    "backtester-mcp": {
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["-m", "backtester_mcp", "serve", "--transport", "stdio"]
     }
   }
 }
@@ -150,16 +162,16 @@ The `validate_strategy` tool runs the full pipeline in one call and returns a st
 
 ## Performance
 
-Benchmarks on Apple M-series equivalent (Numba JIT, after warmup):
+Benchmarks on a 2024 thin-and-light laptop CPU (Intel Core Ultra 7 256V, Lunar Lake generation; performance is in the same ballpark as an Apple M3 MacBook Air or Ryzen 7 7840U for single-threaded NumPy/Numba workloads). Python 3.13, numba 0.65, min of 5 runs after JIT warmup:
 
 | Bars | Time |
 |---|---|
-| 1,000 | ~0.6ms |
-| 10,000 | ~7ms |
-| 100,000 | ~33ms |
-| 500,000 | ~193ms |
+| 1,000 | ~0.1 ms |
+| 10,000 | ~0.6 ms |
+| 100,000 | ~8.5 ms |
+| 500,000 | ~56 ms |
 
-First run includes JIT compilation (~5ms cold start for 10k bars, ~3ms warm).
+The first call in a process pays for numba JIT compilation (roughly 1 to 3 seconds depending on the function). Subsequent calls hit numba's on-disk cache and run at the numbers above.
 
 ## How PBO Works
 
