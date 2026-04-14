@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 .venv/
+.venv_*/
 .env
 *.egg
 .DS_Store
