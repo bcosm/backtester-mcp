@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Show & Tell
+    url: https://github.com/bcosm/backtester-mcp/discussions/categories/show-and-tell
+    about: Built something with backtester-mcp? Share it.
+  - name: General discussion
+    url: https://github.com/bcosm/backtester-mcp/discussions/categories/general
+    about: Open-ended conversation about strategy validation, PBO, MCP integrations.

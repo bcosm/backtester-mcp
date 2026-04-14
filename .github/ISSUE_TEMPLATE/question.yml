@@ -1,0 +1,20 @@
+name: Question
+description: How do I do X with backtester-mcp?
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you've already tried
+      description: Code snippets, docs you've read, etc.
+  - type: input
+    id: version
+    attributes:
+      label: backtester-mcp version
+      placeholder: "0.1.0"

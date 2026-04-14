@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a new feature or capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed feature
+      description: What would you like backtester-mcp to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What are you doing today instead, or what other tools handle this?
+  - type: textarea
+    id: usage
+    attributes:
+      label: Example usage
+      description: Sketch what the API or CLI command would look like.
+      render: python
