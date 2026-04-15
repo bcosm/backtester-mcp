@@ -6,11 +6,17 @@ Local-first backtesting engine with built-in overfitting detection. Asset-class 
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)
 ![Tests](https://github.com/bcosm/backtester-mcp/actions/workflows/test.yml/badge.svg)
 
+## Why this exists
+
+I'm a current student and incoming quant trading intern, and throughout past projects I've kept running into the limits of existing backtesting systems. In particular, existing tools make it possible to run backtests, but difficult to tell whether the results are real or due to something like overfitting. 
+
+As a human with intuition, I was usually able to work around this and verify the results myself, but the same isn't true for AI agents tasked with trading. So, I decided to build a tool that can be used by any agent to quickly and reliably validate strategies before switching to real money.
+
 ## The Problem
 
-QuantConnect requires Docker + C#, supports 9 hardcoded asset classes, and ships zero statistical robustness tools. Solo quants and AI agents need something that's `pip install`, works on any price series (equities, crypto, prediction markets) and tells you if your strategy is overfit before you risk real money.
+If you're a solo quant or an AI agent iterating on strategies, the existing tooling assumes you want a full platform. Installing the engines is a project in itself (Docker images, compiled runtimes, asset-model scaffolding), and the specific thing you most need while iterating, a fast answer to "is this strategy actually overfit or did I just get lucky," isn't something they ship out of the box.
 
-backtester-mcp is a validation layer for AI-generated trading strategies. Vectorized execution on NumPy + Numba, automatic overfitting detection via PBO, walk-forward validation, execution scenario analysis, and a native MCP server so AI agents can validate strategies directly.
+backtester-mcp is the opposite trade-off: `pip install`, any numpy price array works, and the statistical robustness toolkit (PBO, deflated Sharpe, bootstrap CI, walk-forward) is the core feature, not an add-on. A native MCP server means AI agents can call the validation pipeline directly.
 
 ## Quick Start
 
@@ -42,16 +48,14 @@ To run against a real dataset, clone the repo (`git clone https://github.com/bco
 
 ## Key Features
 
-| Feature | QuantConnect | backtester-mcp |
+| Feature | Typical backtesting platform | backtester-mcp |
 |---|---|---|
-| Setup | Docker + .NET | `pip install` |
-| Engine | C# (Python wrapper) | Pure Python + NumPy + Numba |
-| Asset classes | 9 hardcoded | Any price series |
-| Overfitting detection | None | PBO + Bootstrap Sharpe + DSR + Walk-Forward |
-| Execution realism | Hand-tuned per asset | Auto-estimated from data, 3 scenario modes |
-| AI agent interface | Cloud API wrapper | Native MCP server (13 tools) |
-| Run persistence | Cloud-dependent | Local DuckDB registry |
-| Cost | Free tier; $60+/mo | Free & open source |
+| Setup | Docker, compiled runtimes, platform install | `pip install` |
+| Data model | Asset-class specific | Any numpy price series |
+| Overfitting detection | Walk-forward at most | PBO + Bootstrap Sharpe + DSR + Walk-Forward |
+| Execution realism | Per-asset configuration | Auto-estimated from data, 3 scenario modes |
+| AI agent interface | REST API or none | Native MCP server (13 tools) |
+| Run persistence | Platform-specific | Local DuckDB registry |
 
 ## Validation Pipeline
 
@@ -208,8 +212,4 @@ This works on any price series without configuration.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Open an issue before submitting a PR.
-
-## License
-
-Apache 2.0
+See [CONTRIBUTI
