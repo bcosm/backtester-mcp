@@ -48,10 +48,10 @@ To run against a real dataset, clone the repo (`git clone https://github.com/bco
 
 ## Key Features
 
-| Feature | Typical backtesting platform | backtester-mcp |
+| Feature | Full platforms (Zipline, Lean, etc.) | backtester-mcp |
 |---|---|---|
-| Setup | Docker, compiled runtimes, platform install | `pip install` |
-| Data model | Asset-class specific | Any numpy price series |
+| Setup | Often Docker, conda, or platform-specific install | `pip install` |
+| Data model | Structured data bundles or asset-class specific | Any numpy price series |
 | Overfitting detection | Walk-forward at most | PBO + Bootstrap Sharpe + DSR + Walk-Forward |
 | Execution realism | Per-asset configuration | Auto-estimated from data, 3 scenario modes |
 | AI agent interface | REST API or none | Native MCP server (13 tools) |
